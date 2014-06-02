@@ -6,7 +6,7 @@ object HmrcBuild extends Build {
 
   import uk.gov.hmrc.DefaultBuildSettings
 
-  val nameApp = "reactivemongo"
+  val nameApp = "reactivemongo-json"
   val versionApp = "0.1.0-SNAPSHOT"
 
   val appDependencies = {
