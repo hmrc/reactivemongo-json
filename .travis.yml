@@ -1,0 +1,21 @@
+language: scala
+scala:
+- 2.10.4
+- 2.11.2
+jdk:
+- oraclejdk7
+branches:
+  only:
+  - master
+notifications:
+  email:
+    recipients:
+    - platform-engineering@digital.cabinet-office.gov.uk
+services:
+- mongodb
+after_success:
+- '[[ $TRAVIS_BRANCH == "master" ]] && { sbt publish; };'
+env:
+  global:
+  - secure: Rp+IIpQhc06epN/h+R5RooOhms8OPs9a49PRyHbAuQNBbOR+CnCOl0utiypWtScvIyUj53cc6jefEvcZDgaZ3aIX9Z4Ps/gttNYH4HyB0vunWlAc/0FnXR/YKIKYOIi3izchXErOu5ANXEEjF8yK0hLCilDlGI9mOAkjJx57Rpo=
+  - secure: DSuWUQ4BcGUs2CC2GORt0a9CXNC0BU4gkRO/m3SjlsC/a+IqP826tI6Gawh58ExETqlrEJZRhUWvnC9NkQ+tlsZVrRyCZI3ciTZ4oT10G5zBPMtmPtZvG0vO6ba0vvy8P6qteltBKv9uoEz78FXVlXw69eCvNpg+ggP4aZBxJ6Y=
