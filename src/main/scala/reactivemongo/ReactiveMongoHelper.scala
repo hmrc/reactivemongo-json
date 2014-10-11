@@ -27,8 +27,8 @@ case class ReactiveMongoHelper(dbName: String,
   implicit val ec: ExecutionContext = ExecutionContext.Implicits.global
   lazy val driver = new MongoDriver
   lazy val connection = nbChannelsPerNode match {
-    case Some(numberOfChannels) => driver.connection(servers, auth, nbChannelsPerNode = numberOfChannels)
-    case _                      => driver.connection(servers, auth)
+    case Some(numberOfChannels) => driver.connection(servers, authentications = auth, nbChannelsPerNode = numberOfChannels)
+    case _                      => driver.connection(servers, authentications = auth)
   }
   lazy val db = failoverStrategy match {
     case Some(fs : FailoverStrategy) => DB(dbName, connection, fs)

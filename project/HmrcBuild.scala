@@ -5,11 +5,11 @@ object HmrcBuild extends Build {
 
   import uk.gov.hmrc.DefaultBuildSettings
   import DefaultBuildSettings._
-  import BuildDependencies._
+
   import uk.gov.hmrc.{SbtBuildInfo, ShellPrompt}
 
   val nameApp = "reactivemongo-json"
-  val versionApp = "1.1.0"
+  val versionApp = "1.2.0-SNAPSHOT"
 
   val appDependencies = {
     import Dependencies._
@@ -46,7 +46,7 @@ object HmrcBuild extends Build {
 object Dependencies {
 
   object Compile {
-    val reactiveMongo = "org.reactivemongo" %% "reactivemongo" % "0.10.5.akka23-SNAPSHOT" % "provided"
+    val reactiveMongo = "org.reactivemongo" %% "reactivemongo" % "0.10.5.0.akka23" % "provided"
     val playJson = "com.typesafe.play" %% "play-json" % "[2.1.0,2.3.4]" % "provided"
   }
 
