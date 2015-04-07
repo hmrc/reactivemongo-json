@@ -1,6 +1,11 @@
 import sbt._
 import Keys._
 
+/**
+ * NOTE: classes under the package reactivemongo have been extracted from Play-ReactiveMongo, 
+ * https://github.com/ReactiveMongo/Play-ReactiveMongo, and must retain the license applied by 
+ * ReactiveMongo
+ **/
 object HmrcBuild extends Build {
 
   import uk.gov.hmrc.DefaultBuildSettings
@@ -37,7 +42,7 @@ object HmrcBuild extends Build {
         "typesafe-releases" at "http://repo.typesafe.com/typesafe/releases/",
         "typesafe-snapshots" at "http://repo.typesafe.com/typesafe/snapshots/"
       ),
-      crossScalaVersions := Seq("2.11.5", "2.10.4")
+      crossScalaVersions := Seq("2.11.6")
     )
     .settings(SbtBuildInfo(): _*)
     .settings(SonatypeBuild(): _*)
@@ -47,12 +52,12 @@ object Dependencies {
 
   object Compile {
     val reactiveMongo = "org.reactivemongo" %% "reactivemongo" % "0.10.5.0.akka23" % "provided"
-    val playJson = "com.typesafe.play" %% "play-json" % "[2.1.0,2.3.7]" % "provided"
+    val playJson = "com.typesafe.play" %% "play-json" % "[2.1.0,2.3.8]" % "provided"
   }
 
   sealed abstract class Test(scope: String) {
 
-    val scalaTest = "org.scalatest" %% "scalatest" % "2.2.1" % scope
+    val scalaTest = "org.scalatest" %% "scalatest" % "2.2.4" % scope
     val pegdown = "org.pegdown" % "pegdown" % "1.4.2" % scope
   }
 
