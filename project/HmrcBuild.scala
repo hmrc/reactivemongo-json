@@ -14,7 +14,7 @@ object HmrcBuild extends Build {
   import uk.gov.hmrc.{SbtBuildInfo, ShellPrompt}
 
   val nameApp = "reactivemongo-json"
-  val versionApp = "1.4.0"
+  val versionApp = "1.4.0-SNAPSHOT"
 
   val appDependencies = {
     import Dependencies._
@@ -37,7 +37,8 @@ object HmrcBuild extends Build {
       shellPrompt := ShellPrompt(versionApp),
       libraryDependencies ++= appDependencies,
       resolvers := Seq(
-        Opts.resolver.sonatypeReleases
+        Opts.resolver.sonatypeReleases,
+        "typesafe-releases" at "http://repo.typesafe.com/typesafe/releases/"
       ),
       crossScalaVersions := Seq("2.11.6")
     )
