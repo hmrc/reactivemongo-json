@@ -14,7 +14,7 @@ object HmrcBuild extends Build {
   import uk.gov.hmrc.{SbtBuildInfo, ShellPrompt}
 
   val nameApp = "reactivemongo-json"
-  val versionApp = "1.5.0"
+  val versionApp = "1.6.0-SNAPSHOT"
 
   val appDependencies = {
     import Dependencies._
