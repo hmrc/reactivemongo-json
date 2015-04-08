@@ -1,6 +1,6 @@
 # reactivemongo-json
 
-[![Build Status](https://travis-ci.org/hmrc/reactivemongo-json.svg)](https://travis-ci.org/hmrc/reactivemongo-json)
+[![Build Status](https://travis-ci.org/hmrc/reactivemongo-json.svg)](https://travis-ci.org/hmrc/reactivemongo-json) [ ![Download](https://api.bintray.com/packages/hmrc/releases/reactivemongo-json/images/download.svg) ](https://bintray.com/hmrc/releases/reactivemongo-json/_latestVersion)
 
 This library is an extraction of the classes from [Play-ReactiveMongo](https://github.com/ReactiveMongo/Play-ReactiveMongo) allowing the versions of [play-json](https://www.playframework.com/documentation/2.3.x/ScalaJson) and [ReactiveMongo](https://github.com/ReactiveMongo/ReactiveMongo) to be set by the consuming library.
 

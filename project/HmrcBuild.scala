@@ -37,15 +37,11 @@ object HmrcBuild extends Build {
       shellPrompt := ShellPrompt(versionApp),
       libraryDependencies ++= appDependencies,
       resolvers := Seq(
-        Opts.resolver.sonatypeReleases,
-        Opts.resolver.sonatypeSnapshots,
-        "typesafe-releases" at "http://repo.typesafe.com/typesafe/releases/",
-        "typesafe-snapshots" at "http://repo.typesafe.com/typesafe/snapshots/"
+        Opts.resolver.sonatypeReleases
       ),
       crossScalaVersions := Seq("2.11.6")
     )
     .settings(SbtBuildInfo(): _*)
-    .settings(SonatypeBuild(): _*)
 }
 
 object Dependencies {
@@ -65,49 +61,4 @@ object Dependencies {
 
   object IntegrationTest extends Test("it")
 
-}
-
-
-object SonatypeBuild {
-
-  import xerial.sbt.Sonatype._
-
-  def apply() = {
-    sonatypeSettings ++ Seq(
-      pomExtra := (<url>https://www.gov.uk/government/organisations/hm-revenue-customs</url>
-        <licenses>
-          <license>
-            <name>Apache 2</name>
-            <url>http://www.apache.org/licenses/LICENSE-2.0.txt</url>
-          </license>
-        </licenses>
-        <scm>
-          <connection>scm:git@github.com:hmrc/reactivemongo-json.git</connection>
-          <developerConnection>scm:git@github.com:hmrc/reactivemongo-json.git</developerConnection>
-          <url>git@github.com:hmrc/reactivemongo-json.git</url>
-        </scm>
-        <developers>
-          <developer>
-            <id>sgodbillon</id>
-            <name>Stephane Godbillon</name>
-            <url>http://stephane.godbillon.com</url>
-          </developer>
-          <developer>
-            <id>mandubian</id>
-            <name>Pascal Voitot</name>
-            <url>http://mandubian.com</url>
-          </developer>
-          <developer>
-            <id>xnejp03</id>
-            <name>Petr Nejedly</name>
-            <url>http://www.equalexperts.com</url>
-          </developer>
-          <developer>
-            <id>duncancrawford</id>
-            <name>Duncan Crawford</name>
-            <url>http://www.equalexperts.com</url>
-          </developer>
-        </developers>)
-    )
-  }
 }
