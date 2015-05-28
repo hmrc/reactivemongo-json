@@ -1,5 +1,7 @@
 import sbt._
 import Keys._
+import uk.gov.hmrc.versioning.SbtGitVersioning
+import uk.gov.hmrc.SbtAutoBuildPlugin
 
 /**
  * NOTE: classes under the package reactivemongo have been extracted from Play-ReactiveMongo, 
@@ -14,7 +16,6 @@ object HmrcBuild extends Build {
   import uk.gov.hmrc.{SbtBuildInfo, ShellPrompt}
 
   val nameApp = "reactivemongo-json"
-  val versionApp = "1.6.0-SNAPSHOT"
 
   val appDependencies = {
     import Dependencies._
@@ -29,20 +30,16 @@ object HmrcBuild extends Build {
   }
 
   lazy val reactiveMongoJson = Project(nameApp, file("."))
-    .settings(version := versionApp)
-    .settings(scalaSettings : _*)
-    .settings(defaultSettings() : _*)
+    .enablePlugins(SbtAutoBuildPlugin, SbtGitVersioning)
     .settings(
       targetJvm := "jvm-1.7",
-      shellPrompt := ShellPrompt(versionApp),
       libraryDependencies ++= appDependencies,
       resolvers := Seq(
-        Opts.resolver.sonatypeReleases,
+        Resolver.bintrayRepo("hmrc", "releases"),
         "typesafe-releases" at "http://repo.typesafe.com/typesafe/releases/"
       ),
       crossScalaVersions := Seq("2.11.6")
     )
-    .settings(SbtBuildInfo(): _*)
 }
 
 object Dependencies {
