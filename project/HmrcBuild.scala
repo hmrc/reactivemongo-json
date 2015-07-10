@@ -24,8 +24,8 @@ object HmrcBuild extends Build {
       Compile.reactiveMongo,
       Compile.playJson,
 
-      Test.scalaTest,
-      Test.pegdown
+      Test.specs2,
+      Test.junit
     )
   }
 
@@ -35,7 +35,8 @@ object HmrcBuild extends Build {
       libraryDependencies ++= appDependencies,
       resolvers := Seq(
         Resolver.bintrayRepo("hmrc", "releases"),
-        "typesafe-releases" at "http://repo.typesafe.com/typesafe/releases/"
+        "typesafe-releases" at "http://repo.typesafe.com/typesafe/releases/",
+        "Sonatype" at "http://oss.sonatype.org/content/groups/public/"
       ),
       crossScalaVersions := Seq("2.11.7")
     )
@@ -49,6 +50,9 @@ object Dependencies {
   }
 
   sealed abstract class Test(scope: String) {
+
+    val specs2 = "org.specs2" % "specs2" % "2.3.12" % scope cross CrossVersion.binary
+    val junit = "junit" % "junit" % "4.8" % scope
 
     val scalaTest = "org.scalatest" %% "scalatest" % "2.2.4" % scope
     val pegdown = "org.pegdown" % "pegdown" % "1.4.2" % scope
