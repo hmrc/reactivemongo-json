@@ -16,63 +16,247 @@
 
 package reactivemongo.json.collection
 
-import play.api.libs.json._
-import reactivemongo.api._
-import reactivemongo.api.collections._
-import reactivemongo.bson.BSONDocument
-import reactivemongo.bson.buffer._
-import reactivemongo.core.commands.{ GetLastError, LastError }
-import scala.concurrent.{ ExecutionContext, Future }
+import play.api.libs.json.{JsArray, JsBoolean, JsObject, JsUndefined, Json, Writes}
+import reactivemongo.api.collections.{BatchCommands, GenericCollection, GenericCollectionProducer, GenericQueryBuilder}
+import reactivemongo.api.commands.{WriteConcern, WriteResult}
+import reactivemongo.api.{Collection, CollectionMetaCommands, DB, FailoverStrategy, QueryOpts, ReadPreference}
+import reactivemongo.json.{BSONFormats, JSONSerializationPack}
+import reactivemongo.utils.option
+
+import scala.concurrent.{ExecutionContext, Future}
 
 /**
  * A Collection that interacts with the Play JSON library, using `Reads` and `Writes`.
  */
 object `package` {
-  implicit object JSONCollectionProducer extends GenericCollectionProducer[JsObject, Reads, Writes, JSONCollection] {
+  implicit object JSONCollectionProducer extends GenericCollectionProducer[JSONSerializationPack.type, JSONCollection] {
     def apply(db: DB, name: String, failoverStrategy: FailoverStrategy) = new JSONCollection(db, name, failoverStrategy)
   }
 }
 
-trait JSONGenericHandlers extends GenericHandlers[JsObject, Reads, Writes] {
-  import reactivemongo.json.BSONFormats._
-  object StructureBufferReader extends BufferReader[JsObject] {
-    def read(buffer: ReadableBuffer) = {
-      Json.toJson(BSONDocument.read(buffer)).as[JsObject]
-    }
-  }
-  object StructureBufferWriter extends BufferWriter[JsObject] {
-    def write[B <: reactivemongo.bson.buffer.WritableBuffer](document: JsObject, buffer: B): B = {
-      BSONDocument.write(Json.fromJson[BSONDocument](document).get, buffer)
-      buffer
-    }
-  }
-  case class BSONStructureReader[T](reader: Reads[T]) extends GenericReader[JsObject, T] {
-    def read(doc: JsObject) = reader.reads(doc) match {
-      case success: JsSuccess[T] => success.get
-      case error: JsError        => throw new NoSuchElementException(error.toString)
-    }
-  }
-  case class BSONStructureWriter[T](writer: Writes[T]) extends GenericWriter[T, JsObject] {
-    def write(t: T) = writer.writes(t).as[JsObject]
-  }
-  def StructureReader[T](reader: Reads[T]) = BSONStructureReader(reader)
-  def StructureWriter[T](writer: Writes[T]): GenericWriter[T, JsObject] = BSONStructureWriter(writer)
-}
+object JSONBatchCommands
+  extends BatchCommands[JSONSerializationPack.type] { commands =>
 
-object JSONGenericHandlers extends JSONGenericHandlers
+  import play.api.libs.json.{JsNumber, JsResult, JsString, JsSuccess, JsValue}
+  import reactivemongo.api.commands.{CountCommand => CC, DefaultWriteResult, DeleteCommand => DC, GetLastError => GLE, InsertCommand => IC, LastError, ResolvedCollectionCommand, UpdateCommand => UC, UpdateWriteResult, Upserted, WriteConcernError, WriteError}
+  import reactivemongo.bson.BSONObjectID
 
-case class JSONDocumentReaderAsBufferReader[T](reader: Reads[T]) extends BufferReader[T] {
-  def read(buffer: ReadableBuffer) = reader.reads(JSONGenericHandlers.StructureBufferReader.read(buffer)).get
+  val pack = JSONSerializationPack
+
+  object JSONCountCommand extends CC[JSONSerializationPack.type] {
+    val pack = commands.pack
+  }
+  val CountCommand = JSONCountCommand
+
+  implicit object HintWriter extends Writes[CountCommand.Hint] {
+    import CountCommand.{HintDocument, HintString}
+
+    def writes(hint: CountCommand.Hint): JsValue = hint match {
+      case HintString(s)     => JsString(s)
+      case HintDocument(obj) => obj
+    }
+  }
+
+  implicit object CountWriter
+    extends pack.Writer[ResolvedCollectionCommand[CountCommand.Count]] {
+
+    def writes(count: ResolvedCollectionCommand[CountCommand.Count]): pack.Document = {
+      val fields = Seq[Option[(String, Json.JsValueWrapper)]](
+        Some("count" -> count.collection),
+        count.command.query.map("query" -> _),
+        option(count.command.limit != 0, count.command.limit).map("limit" -> _),
+        option(count.command.skip != 0, count.command.skip).map("skip" -> _),
+        count.command.hint.map("hint" -> _)).flatten
+
+      Json.obj(fields: _*)
+    }
+  }
+
+  implicit object CountResultReader
+    extends pack.Reader[CountCommand.CountResult] {
+    def reads(js: JsValue): JsResult[CountCommand.CountResult] =
+      (js \ "n").validate[Int].map(CountCommand.CountResult(_))
+  }
+
+  object JSONInsertCommand extends IC[JSONSerializationPack.type] {
+    val pack = commands.pack
+  }
+  val InsertCommand = JSONInsertCommand
+  type ResolvedInsert = ResolvedCollectionCommand[InsertCommand.Insert]
+
+  implicit object WriteConcernWriter extends pack.Writer[WriteConcern] {
+    def writes(wc: WriteConcern): pack.Document = {
+      val obj = Json.obj(
+        "w" -> ((wc.w match {
+          case GLE.Majority                 => JsString("majority")
+          case GLE.TagSet(tagSet)           => JsString(tagSet)
+          case GLE.WaitForAknowledgments(n) => JsNumber(n)
+        }): JsValue),
+        "wtimeout" -> wc.wtimeout)
+
+      if (!wc.j) obj else obj + ("j" -> JsBoolean(true))
+    }
+  }
+
+  implicit object InsertWriter extends pack.Writer[ResolvedInsert] {
+    def writes(cmd: ResolvedInsert): pack.Document = Json.obj(
+      "insert" -> cmd.collection,
+      "documents" -> cmd.command.documents,
+      "ordered" -> cmd.command.ordered,
+      "writeConcern" -> cmd.command.writeConcern)
+  }
+
+  object JSONUpdateCommand extends UC[JSONSerializationPack.type] {
+    val pack = commands.pack
+  }
+  val UpdateCommand = JSONUpdateCommand
+  type ResolvedUpdate = ResolvedCollectionCommand[UpdateCommand.Update]
+
+  implicit object UpdateElementWriter
+    extends pack.Writer[UpdateCommand.UpdateElement] {
+
+    def writes(element: UpdateCommand.UpdateElement): pack.Document = Json.obj(
+      "q" -> element.q,
+      "u" -> element.u,
+      "upsert" -> element.upsert,
+      "multi" -> element.multi)
+  }
+
+  implicit object UpdateWriter extends pack.Writer[ResolvedUpdate] {
+    def writes(cmd: ResolvedUpdate): pack.Document = Json.obj(
+      "update" -> cmd.collection,
+      "updates" -> Json.toJson(cmd.command.documents),
+      "ordered" -> cmd.command.ordered,
+      "writeConcern" -> cmd.command.writeConcern)
+  }
+
+  implicit object UpsertedReader extends pack.Reader[Upserted] {
+    def reads(js: JsValue): JsResult[Upserted] = for {
+      ix <- (js \ "index").validate[Int]
+      id <- JsSuccess(BSONFormats.BSONObjectIDFormat.
+        partialReads.lift(js \ "_id"))
+    } yield Upserted(index = ix, _id = id)
+  }
+
+  implicit object WriteErrorReader extends pack.Reader[WriteError] {
+    def reads(js: JsValue): JsResult[WriteError] = for {
+      id <- (js \ "index").validate[Int]
+      co <- (js \ "code").validate[Int]
+      em <- (js \ "errmsg").validate[String]
+    } yield WriteError(index = id, code = co, errmsg = em)
+  }
+
+  implicit object WriteConcernErrorReader
+    extends pack.Reader[WriteConcernError] {
+    def reads(js: JsValue): JsResult[WriteConcernError] = for {
+      co <- (js \ "code").validate[Int]
+      em <- (js \ "errmsg").validate[String]
+    } yield WriteConcernError(code = co, errmsg = em)
+  }
+
+  implicit object UpdateReader extends pack.Reader[UpdateCommand.UpdateResult] {
+    def reads(js: JsValue): JsResult[UpdateCommand.UpdateResult] = for {
+      ok <- (js \ "ok").validate[Option[Int]]
+      n <- (js \ "n").validate[Option[Int]]
+      mo <- (js \ "nModified").validate[Option[Int]]
+      up <- (js \ "upserted").validate[Option[Seq[Upserted]]]
+      we <- (js \ "writeErrors").validate[Option[Seq[WriteError]]]
+      ce <- (js \ "writeConcernError").validate[Option[WriteConcernError]]
+      co <- (js \ "code").validate[Option[Int]] //FIXME There is no corresponding official docs.
+      em <- (js \ "errmsg").validate[Option[String]] //FIXME There is no corresponding official docs.
+    } yield UpdateWriteResult(
+        ok = ok.exists(_ != 0),
+        n = n.getOrElse(0),
+        nModified = mo.getOrElse(0),
+        upserted = up.getOrElse(Seq.empty[Upserted]),
+        writeErrors = we.getOrElse(Seq.empty[WriteError]),
+        writeConcernError = ce,
+        code = co,
+        errmsg = em)
+  }
+
+  object JSONDeleteCommand extends DC[JSONSerializationPack.type] {
+    val pack = commands.pack
+  }
+  val DeleteCommand = JSONDeleteCommand
+  type ResolvedDelete = ResolvedCollectionCommand[DeleteCommand.Delete]
+
+  implicit object DeleteElementWriter
+    extends pack.Writer[DeleteCommand.DeleteElement] {
+    def writes(e: DeleteCommand.DeleteElement): pack.Document = Json.obj(
+      "q" -> e.q, "limit" -> e.limit)
+  }
+
+  implicit object DeleteWriter extends pack.Writer[ResolvedDelete] {
+    def writes(cmd: ResolvedDelete): pack.Document = Json.obj(
+      "delete" -> cmd.collection,
+      "deletes" -> Json.toJson(cmd.command.deletes),
+      "ordered" -> cmd.command.ordered,
+      "writeConcern" -> cmd.command.writeConcern)
+  }
+
+  implicit object DefaultWriteResultReader
+    extends pack.Reader[DefaultWriteResult] {
+    def reads(js: JsValue): JsResult[DefaultWriteResult] = for {
+      ok <- (js \ "ok").validate[Option[Int]]
+      n <- (js \ "n").validate[Option[Int]]
+      we <- (js \ "writeErrors").validate[Option[Seq[WriteError]]]
+      ce <- (js \ "writeConcernError").validate[Option[WriteConcernError]]
+      co <- (js \ "code").validate[Option[Int]] //FIXME There is no corresponding official docs.      
+      em <- (js \ "errmsg").validate[Option[String]] //FIXME There is no corresponding official docs.
+    } yield DefaultWriteResult(
+        ok = ok.exists(_ != 0),
+        n = n.getOrElse(0),
+        writeErrors = we.getOrElse(Seq.empty[WriteError]),
+        writeConcernError = ce,
+        code = co,
+        errmsg = em)
+  }
+
+  implicit object LastErrorReader extends pack.Reader[LastError] {
+    def reads(js: JsValue): JsResult[LastError] = for {
+      ok <- (js \ "ok").validate[Option[Int]]
+      er <- (js \ "err").validate[Option[String]]
+      co <- (js \ "code").validate[Option[Int]]
+      lo <- (js \ "lastOp").validate[Option[Long]]
+      n <- (js \ "n").validate[Option[Int]]
+      ss <- (js \ "singleShard").validate[Option[String]]
+      ux <- (js \ "updatedExisting").validate[Option[Boolean]]
+      ue <- BSONFormats.BSONObjectIDFormat.partialReads.lift(js \ "upserted").
+        fold[JsResult[Option[BSONObjectID]]](
+          JsSuccess(Option.empty[BSONObjectID]))(_.map(id => Some(id)))
+      wn <- (js \ "wnote") match {
+        case JsString("majority") => JsSuccess(Some(GLE.Majority))
+        case JsString(tagSet)     => JsSuccess(Some(GLE.TagSet(tagSet)))
+        case JsNumber(acks) => JsSuccess(
+          Some(GLE.WaitForAknowledgments(acks.toInt)))
+        case _ => JsSuccess(Option.empty[GLE.W])
+      }
+      wt <- (js \ "wtimeout").validate[Option[Boolean]]
+      we <- (js \ "waited").validate[Option[Int]]
+      wm <- (js \ "wtime").validate[Option[Int]]
+    } yield LastError(ok.exists(_ != 0), er, co, lo, n.getOrElse(0),
+        ss, ux.getOrElse(false), ue, wn, wt.getOrElse(false), we, wm)
+  }
+
+  import reactivemongo.json.commands.{JSONFindAndModifyCommand, JSONFindAndModifyImplicits}
+  val FindAndModifyCommand = JSONFindAndModifyCommand
+  implicit def FindAndModifyWriter = JSONFindAndModifyImplicits.FindAndModifyWriter
+  implicit def FindAndModifyReader = JSONFindAndModifyImplicits.FindAndModifyResultReader
+
 }
 
 /**
  * A Collection that interacts with the Play JSON library, using `Reads` and `Writes`.
  */
 case class JSONCollection(
-    db: DB,
-    name: String,
-    failoverStrategy: FailoverStrategy) extends GenericCollection[JsObject, Reads, Writes] with JSONGenericHandlers with CollectionMetaCommands {
-  def genericQueryBuilder: GenericQueryBuilder[JsObject, Reads, Writes] =
+                           db: DB, name: String, failoverStrategy: FailoverStrategy)
+  extends GenericCollection[JSONSerializationPack.type] with CollectionMetaCommands {
+
+  val pack = JSONSerializationPack
+  val BatchCommands = JSONBatchCommands
+
+  def genericQueryBuilder: GenericQueryBuilder[JSONSerializationPack.type] =
     JSONQueryBuilder(this, failoverStrategy)
 
   /**
@@ -80,21 +264,24 @@ case class JSONCollection(
    *
    * @param doc The document to save.
    */
-  def save(doc: JsObject)(implicit ec: ExecutionContext): Future[LastError] =
-    save(doc, GetLastError())
+  @deprecated(since = "0.11.1", message = "Use [[update]] with `upsert` set to true")
+  def save(doc: JsObject)(implicit ec: ExecutionContext): Future[WriteResult] =
+    save(doc, WriteConcern.Default)
 
   /**
    * Inserts the document, or updates it if it already exists in the collection.
    *
    * @param doc The document to save.
-   * @param writeConcern the [[reactivemongo.core.commands.GetLastError]] command message to send in order to control how the document is inserted. Defaults to GetLastError().
+   * @param writeConcern The write concern
    */
-  def save(doc: JsObject, writeConcern: GetLastError)(implicit ec: ExecutionContext): Future[LastError] = {
-    import reactivemongo.bson._
-    import reactivemongo.json.BSONFormats
+  @deprecated(since = "0.11.1", message = "Use [[update]] with `upsert` set to true")
+  def save(doc: pack.Document, writeConcern: WriteConcern)(implicit ec: ExecutionContext): Future[WriteResult] = {
+    import reactivemongo.bson.BSONObjectID
     (doc \ "_id" match {
-      case _: JsUndefined => insert(doc + ("_id" -> BSONFormats.BSONObjectIDFormat.writes(BSONObjectID.generate)), writeConcern)
-      case id             => update(Json.obj("_id" -> id), doc, writeConcern, upsert = true)
+      case _: JsUndefined => insert(doc + ("_id" ->
+        BSONFormats.BSONObjectIDFormat.writes(BSONObjectID.generate)),
+        writeConcern)
+      case id => update(Json.obj("_id" -> id), doc, writeConcern, upsert = true)
     })
   }
 
@@ -102,53 +289,116 @@ case class JSONCollection(
    * Inserts the document, or updates it if it already exists in the collection.
    *
    * @param doc The document to save.
-   * @param writeConcern the [[reactivemongo.core.commands.GetLastError]] command message to send in order to control how the document is inserted. Defaults to GetLastError().
+   * @param writeConcern The write concern
    */
-  def save[T](doc: T, writeConcern: GetLastError = GetLastError())(implicit ec: ExecutionContext, writer: Writes[T]): Future[LastError] =
-    save(writer.writes(doc).as[JsObject], writeConcern)
+  @deprecated(since = "0.11.1", message = "Use [[update]] with `upsert` set to true")
+  def save[T](doc: T, writeConcern: WriteConcern = WriteConcern.Default)(implicit ec: ExecutionContext, writer: Writes[T]): Future[WriteResult] =
+    writer.writes(doc) match {
+      case d @ JsObject(_) => save(d, writeConcern)
+      case _ =>
+        Future.failed[WriteResult](new Exception("cannot write object"))
+    }
 }
 
 case class JSONQueryBuilder(
-    collection: Collection,
-    failover: FailoverStrategy,
-    queryOption: Option[JsObject] = None,
-    sortOption: Option[JsObject] = None,
-    projectionOption: Option[JsObject] = None,
-    hintOption: Option[JsObject] = None,
-    explainFlag: Boolean = false,
-    snapshotFlag: Boolean = false,
-    commentString: Option[String] = None,
-    options: QueryOpts = QueryOpts()) extends GenericQueryBuilder[JsObject, Reads, Writes] with JSONGenericHandlers {
-  import reactivemongo.utils.option
+                             collection: Collection,
+                             failover: FailoverStrategy,
+                             queryOption: Option[JsObject] = None,
+                             sortOption: Option[JsObject] = None,
+                             projectionOption: Option[JsObject] = None,
+                             hintOption: Option[JsObject] = None,
+                             explainFlag: Boolean = false,
+                             snapshotFlag: Boolean = false,
+                             commentString: Option[String] = None,
+                             options: QueryOpts = QueryOpts())
+  extends GenericQueryBuilder[JSONSerializationPack.type] {
+
+  import play.api.libs.json.Json.JsValueWrapper
+
   type Self = JSONQueryBuilder
 
+  val pack = JSONSerializationPack
   private def empty = Json.obj()
-
-  protected def writeStructureIntoBuffer[B <: WritableBuffer](document: JsObject, buffer: B): B = {
-    JSONGenericHandlers.StructureBufferWriter.write(document, buffer)
-  }
-
-  object structureReader extends Reads[JsObject] {
-    def reads(json: JsValue): JsResult[JsObject] = json.validate[JsObject]
-  }
-
-  protected def toStructure[T](writer: Writes[T], subject: T) = writer.writes(subject)
-
-  def convert[T](reader: Reads[T]): BufferReader[T] = JSONDocumentReaderAsBufferReader(reader)
 
   def copy(queryOption: Option[JsObject], sortOption: Option[JsObject], projectionOption: Option[JsObject], hintOption: Option[JsObject], explainFlag: Boolean, snapshotFlag: Boolean, commentString: Option[String], options: QueryOpts, failover: FailoverStrategy): JSONQueryBuilder =
     JSONQueryBuilder(collection, failover, queryOption, sortOption, projectionOption, hintOption, explainFlag, snapshotFlag, commentString, options)
 
-  def merge: JsObject = {
-    if (!sortOption.isDefined && !hintOption.isDefined && !explainFlag && !snapshotFlag && !commentString.isDefined)
-      queryOption.getOrElse(Json.obj())
-    else {
-      Json.obj("$query" -> (queryOption.getOrElse(empty): JsObject)) ++
-        sortOption.map(o => Json.obj("$orderby" -> o)).getOrElse(empty) ++
-        hintOption.map(o => Json.obj("$hint" -> o)).getOrElse(empty) ++
-        commentString.map(o => Json.obj("$comment" -> o)).getOrElse(empty) ++
-        option(explainFlag, JsBoolean(true)).map(o => Json.obj("$explain" -> o)).getOrElse(empty) ++
-        option(snapshotFlag, JsBoolean(true)).map(o => Json.obj("$snapshot" -> o)).getOrElse(empty)
+  def merge(readPreference: ReadPreference): JsObject = {
+    // Primary and SecondaryPreferred are encoded as the slaveOk flag;
+    // the others are encoded as $readPreference field.
+    val readPreferenceDocument = readPreference match {
+      case ReadPreference.Primary                    => None
+      case ReadPreference.PrimaryPreferred(filter)   => Some(Json.obj("mode" -> "primaryPreferred"))
+      case ReadPreference.Secondary(filter)          => Some(Json.obj("mode" -> "secondary"))
+      case ReadPreference.SecondaryPreferred(filter) => None
+      case ReadPreference.Nearest(filter)            => Some(Json.obj("mode" -> "nearest"))
     }
+
+    val optionalFields = List[Option[(String, JsValueWrapper)]](
+      sortOption.map { "$orderby" -> _ },
+      hintOption.map { "$hint" -> _ },
+      commentString.map { "$comment" -> _ },
+      option(explainFlag, "$explain" -> true),
+      option(snapshotFlag, "$snapshot" -> true),
+      readPreferenceDocument.map { "$readPreference" -> _ }).flatten
+
+    val query = queryOption.getOrElse(empty)
+
+    if (optionalFields.isEmpty) query else {
+      val fs = ("$query" -> implicitly[JsValueWrapper](query)) :: optionalFields
+      Json.obj(fs: _*)
+    }
+  }
+}
+
+// JSON extension for cursors
+
+import reactivemongo.api.{Cursor, FlattenedCursor, WrappedCursor}
+
+sealed trait JsCursor[T] extends Cursor[T] {
+  /**
+   * Returns the result of cursor as a JSON array.
+   *
+   * @param maxDocs Maximum number of documents to be retrieved
+   */
+  def jsArray(maxDocs: Int = Int.MaxValue)(implicit ec: ExecutionContext): Future[JsArray]
+
+}
+
+class JsCursorImpl[T: Writes](val wrappee: Cursor[T])
+  extends JsCursor[T] with WrappedCursor[T] {
+  import Cursor.{Cont, Fail}
+
+  private val writes = implicitly[Writes[T]]
+
+  def jsArray(maxDocs: Int = Int.MaxValue)(implicit ec: ExecutionContext): Future[JsArray] = wrappee.foldWhile(Json.arr(), maxDocs)(
+    (arr, res) => Cont(arr :+ writes.writes(res)),
+    (_, error) => Fail(error))
+
+}
+
+class JsFlattenedCursor[T](val future: Future[JsCursor[T]])
+  extends FlattenedCursor[T](future) with JsCursor[T] {
+
+  def jsArray(maxDocs: Int = Int.MaxValue)(implicit ec: ExecutionContext): Future[JsArray] = future.flatMap(_.jsArray(maxDocs))
+
+}
+
+/** Implicits of the JSON extensions for cursors. */
+object JsCursor {
+  import reactivemongo.api.{CursorFlattener, CursorProducer}
+
+  /** Provides JSON instances for CursorProducer typeclass. */
+  implicit def cursorProducer[T: Writes] = new CursorProducer[T] {
+    type ProducedCursor = JsCursor[T]
+
+    // Returns a cursor with JSON operations.
+    def produce(base: Cursor[T]): JsCursor[T] = new JsCursorImpl[T](base)
+  }
+
+  /** Provides flattener for JSON cursor. */
+  implicit object cursorFlattener extends CursorFlattener[JsCursor] {
+    def flatten[T](future: Future[JsCursor[T]]): JsCursor[T] =
+      new JsFlattenedCursor(future)
   }
 }

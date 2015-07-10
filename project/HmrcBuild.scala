@@ -37,14 +37,14 @@ object HmrcBuild extends Build {
         Resolver.bintrayRepo("hmrc", "releases"),
         "typesafe-releases" at "http://repo.typesafe.com/typesafe/releases/"
       ),
-      crossScalaVersions := Seq("2.11.6")
+      crossScalaVersions := Seq("2.11.7")
     )
 }
 
 object Dependencies {
 
   object Compile {
-    val reactiveMongo = "org.reactivemongo" %% "reactivemongo" % "0.10.5.0.akka23" % "provided"
+    val reactiveMongo = "org.reactivemongo" %% "reactivemongo" % "0.11.1" % "provided"
     val playJson = "com.typesafe.play" %% "play-json" % "2.3.9" % "provided"
   }
 

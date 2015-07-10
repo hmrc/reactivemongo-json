@@ -19,28 +19,50 @@ package reactivemongo.json
 import play.api.libs.json._
 import reactivemongo.bson._
 
-trait LowerImplicitBSONHandlers {
-  implicit object JsValueWriter extends BSONDocumentWriter[JsValue] {
-    def write(jsValue: JsValue) = BSONFormats.BSONDocumentFormat.reads(jsValue).get
-  }
-  implicit object JsValueReader extends BSONDocumentReader[JsValue] {
-    def read(document: BSONDocument) = BSONFormats.BSONDocumentFormat.writes(document)
+object `package` {
+  implicit object JsObjectDocumentWriter // Identity writer
+    extends JSONSerializationPack.Writer[JsObject] {
+    def writes(obj: JsObject): JSONSerializationPack.Document = obj
   }
 }
+
+
+import play.api.libs.json.{JsObject, JsValue}
+import reactivemongo.bson.{BSONDocument, BSONDocumentReader, BSONDocumentWriter}
+
+/**
+ * Implicit BSON Handlers (BSONDocumentReader/BSONDocumentWriter for JsObject)
+ */
+object ImplicitBSONHandlers extends ImplicitBSONHandlers
 
 trait ImplicitBSONHandlers extends LowerImplicitBSONHandlers {
   implicit object JsObjectWriter extends BSONDocumentWriter[JsObject] {
     def write(obj: JsObject): BSONDocument =
-      BSONFormats.BSONDocumentFormat.reads(obj).get
+      BSONFormats.BSONDocumentFormat.bson(obj)
   }
 
   implicit object JsObjectReader extends BSONDocumentReader[JsObject] {
     def read(document: BSONDocument) =
       BSONFormats.BSONDocumentFormat.writes(document).as[JsObject]
   }
+
+  implicit object BSONDocumentWrites extends OWrites[BSONDocument] {
+    def writes(bson: BSONDocument): JsObject =
+      BSONFormats.BSONDocumentFormat.json(bson)
+  }
 }
 
-/**
- * Implicit BSON Handlers (BSONDocumentReader/BSONDocumentWriter for JsObject)
- */
-object ImplicitBSONHandlers extends ImplicitBSONHandlers
+trait LowerImplicitBSONHandlers {
+  import reactivemongo.bson.{BSONElement, Producer}
+
+  implicit def jsWriter[A <: JsValue, B <: BSONValue] = new BSONWriter[A, B] {
+    def write(js: A): B = BSONFormats.toBSON(js).get.asInstanceOf[B]
+  }
+
+  implicit object BSONValueWrites extends Writes[BSONValue] {
+    def writes(bson: BSONValue): JsValue = BSONFormats.toJSON(bson)
+  }
+
+  implicit def JsFieldBSONElementProducer[T <: JsValue](jsField: (String, T)): Producer[BSONElement] = Producer.nameValue2Producer(jsField)
+
+}
