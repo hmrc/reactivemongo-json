@@ -53,9 +53,6 @@ object Dependencies {
 
     val specs2 = "org.specs2" % "specs2" % "2.3.12" % scope cross CrossVersion.binary
     val junit = "junit" % "junit" % "4.8" % scope
-
-    val scalaTest = "org.scalatest" %% "scalatest" % "2.2.4" % scope
-    val pegdown = "org.pegdown" % "pegdown" % "1.4.2" % scope
   }
 
   object Test extends Test("test")
