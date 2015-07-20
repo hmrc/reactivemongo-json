@@ -17,13 +17,13 @@
 package reactivemongo.json.commands
 
 import play.api.libs.json.{
-  JsError,
-  JsNumber,
-  JsObject,
-  JsResult,
-  JsSuccess,
-  JsValue,
-  Reads
+JsError,
+JsNumber,
+JsObject,
+JsResult,
+JsSuccess,
+JsValue,
+Reads
 }
 
 import reactivemongo.api.commands.{ CommandError, UnitBox }
@@ -42,14 +42,14 @@ trait JSONCommandError extends CommandError {
 }
 
 case class DefaultJSONCommandError(
-    code: Option[Int],
-    errmsg: Option[String],
-    originalDocument: JsObject) extends JSONCommandError {
+                                    code: Option[Int],
+                                    errmsg: Option[String],
+                                    originalDocument: JsObject) extends JSONCommandError {
   override def getMessage = s"CommandError[code=${code.getOrElse("<unknown>")}, errmsg=${errmsg.getOrElse("<unknown>")}, doc: ${originalDocument}]"
 }
 
 private[commands] trait DealingWithGenericCommandErrorsReader[A]
-    extends Reads[A] {
+  extends Reads[A] {
 
   def readResult(doc: JsObject): A
 
