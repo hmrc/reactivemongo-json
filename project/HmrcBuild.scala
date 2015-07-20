@@ -46,7 +46,7 @@ object HmrcBuild extends Build {
 object Dependencies {
 
   object Compile {
-    val reactiveMongo = "org.reactivemongo" %% "reactivemongo" % "0.11.1" % "provided"
+    val reactiveMongo = "org.reactivemongo" %% "reactivemongo" % "0.11.3" % "provided"
     val playJson = "com.typesafe.play" %% "play-json" % "2.3.9" % "provided"
   }
 

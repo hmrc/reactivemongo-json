@@ -14,13 +14,12 @@
  * limitations under the License.
  */
 
-import org.specs2.mutable._
 import play.api.libs.iteratee._
+import reactivemongo.json.BSONFormats
 import scala.concurrent._
 import play.api.libs.json._
 import play.api.libs.json.util._
 import play.api.libs.json.Reads._
-import play.api.libs.json.Writes._
 
 object Common {
   import scala.concurrent._
@@ -32,28 +31,31 @@ object Common {
   val timeout = 5 seconds
   val timeoutMillis = timeout.toMillis.toInt
 
-  lazy val connection = new MongoDriver().connection(List("localhost:27017"))
+  lazy val driver = new MongoDriver()
+  lazy val connection = driver.connection(List("localhost:27017"))
   lazy val db = {
     val _db = connection("specs2-test-reactivemongo")
     Await.ready(_db.drop, timeout)
     _db
   }
+
+  def closeDriver(): Unit = try {
+    driver.close()
+  } catch { case _: Throwable => () }
 }
 
 case class Expeditor(name: String)
 case class Item(name: String, description: String, occurrences: Int)
 case class Package(
-  expeditor: Expeditor,
-  items: List[Item],
-  price: Float)
+                    expeditor: Expeditor,
+                    items: List[Item],
+                    price: Float)
 
-class JsonBson extends Specification {
+class JsonBson extends org.specs2.mutable.Specification {
   import Common._
 
   import reactivemongo.bson._
-  import reactivemongo.json.ImplicitBSONHandlers
-  import reactivemongo.json.ImplicitBSONHandlers._
-  import reactivemongo.json.BSONFormats
+  import reactivemongo.json._
 
   sequential
   lazy val collection = db("somecollection_commonusecases")
@@ -80,18 +82,16 @@ class JsonBson extends Specification {
     "convert a simple json array to bson and vice versa" in {
       val json = Json.arr(JsString("jack"), JsNumber(9.1))
       val bson = BSONFormats.toBSON(json).get.asInstanceOf[BSONArray]
-      val json2 = BSONFormats.toJSON(bson)
-      json.toString mustEqual json2.toString
+
+      json.toString mustEqual BSONFormats.toJSON(bson).toString
     }
     "convert a json doc containing an array and vice versa" in {
       val json = Json.obj(
         "name" -> JsString("jack"),
-        "contacts" -> Json.arr(
-          Json.obj(
-            "email" -> "jack@jack.com")))
+        "contacts" -> Json.arr(Json.toJsFieldJsValueWrapper(Json.obj("email" -> "jack@jack.com"))))
       val bson = JsObjectWriter.write(json)
-      val json2 = JsObjectReader.read(bson)
-      json.toString mustEqual json2.toString
+
+      json.toString mustEqual JsObjectReader.read(bson).toString
     }
 
     "format a jspath for mongo crud" in {

@@ -18,17 +18,17 @@ package reactivemongo
 
 import reactivemongo.core.nodeset.Authenticate
 import scala.concurrent.ExecutionContext
-import reactivemongo.api.{FailoverStrategy, DB, MongoDriver}
+import reactivemongo.api.{MongoConnectionOptions, FailoverStrategy, DB, MongoDriver}
 
 case class ReactiveMongoHelper(dbName: String,
-                               servers: List[String],
-                               auth: List[Authenticate],
+                               servers: Seq[String],
+                               auth: Seq[Authenticate],
                                nbChannelsPerNode: Option[Int],
                                failoverStrategy: Option[FailoverStrategy]) {
   implicit val ec: ExecutionContext = ExecutionContext.Implicits.global
   lazy val driver = new MongoDriver
   lazy val connection = nbChannelsPerNode match {
-    case Some(numberOfChannels) => driver.connection(servers, authentications = auth, nbChannelsPerNode = numberOfChannels)
+    case Some(numberOfChannels) => driver.connection(servers, authentications = auth, options = MongoConnectionOptions().copy(nbChannelsPerNode = numberOfChannels))
     case _                      => driver.connection(servers, authentications = auth)
   }
   lazy val db = failoverStrategy match {

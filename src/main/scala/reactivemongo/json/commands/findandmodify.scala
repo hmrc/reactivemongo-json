@@ -16,9 +16,14 @@
 
 package reactivemongo.json.commands
 
-import play.api.libs.json.Json.JsValueWrapper
-import play.api.libs.json.{JsObject, JsUndefined, Json, OWrites}
-import reactivemongo.api.commands.{FindAndModifyCommand, ResolvedCollectionCommand}
+import play.api.libs.json.{ Json, JsObject, JsUndefined, OWrites }, Json.JsValueWrapper
+import reactivemongo.json.JSONSerializationPack
+import reactivemongo.json.commands.DealingWithGenericCommandErrorsReader
+
+import reactivemongo.api.commands.{
+  FindAndModifyCommand,
+  ResolvedCollectionCommand
+}
 import reactivemongo.json.JSONSerializationPack
 
 object JSONFindAndModifyCommand extends FindAndModifyCommand[JSONSerializationPack.type] {
@@ -27,6 +32,7 @@ object JSONFindAndModifyCommand extends FindAndModifyCommand[JSONSerializationPa
 
 object JSONFindAndModifyImplicits {
   import JSONFindAndModifyCommand._
+  import reactivemongo.utils.option
 
   implicit object FindAndModifyResultReader extends DealingWithGenericCommandErrorsReader[FindAndModifyResult] {
     def readResult(result: JsObject): FindAndModifyResult =
@@ -48,7 +54,7 @@ object JSONFindAndModifyImplicits {
   }
 
   implicit object FindAndModifyWriter
-      extends OWrites[ResolvedCollectionCommand[FindAndModify]] {
+    extends OWrites[ResolvedCollectionCommand[FindAndModify]] {
 
     def writes(command: ResolvedCollectionCommand[FindAndModify]): JsObject = {
       val optionalFields = List[Option[(String, JsValueWrapper)]](
