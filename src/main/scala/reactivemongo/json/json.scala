@@ -26,8 +26,7 @@ import scala.math.BigDecimal.{
   long2bigDecimal
 }
 
-object `package` {
-  import ImplicitBSONHandlers._
+object `package` extends ImplicitBSONHandlers {
   def readOpt[T](js: JsValue)(implicit reader: Reads[T]): JsResult[Option[T]] = js.validate[Option[T]]
 }
 
