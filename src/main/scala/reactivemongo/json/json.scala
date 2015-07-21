@@ -393,7 +393,7 @@ object ImplicitBSONHandlers extends ImplicitBSONHandlers
 /**
  * Implicit BSON Handlers (BSONDocumentReader/BSONDocumentWriter for JsObject)
  */
-sealed trait ImplicitBSONHandlers extends BSONFormats {
+trait ImplicitBSONHandlers extends BSONFormats {
   implicit object JsObjectWriter extends BSONDocumentWriter[JsObject] {
     def write(obj: JsObject): BSONDocument =
       BSONFormats.BSONDocumentFormat.bson(obj)
