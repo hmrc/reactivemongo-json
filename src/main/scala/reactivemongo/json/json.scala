@@ -26,6 +26,12 @@ import scala.math.BigDecimal.{
   long2bigDecimal
 }
 
+object `package` {
+  import ImplicitBSONHandlers._
+  def readOpt[T](js: JsValue)(implicit reader: Reads[T]): JsResult[Option[T]] = js.validate[Option[T]]
+}
+
+
 object BSONFormats extends BSONFormats
 
 /**
@@ -388,7 +394,7 @@ object ImplicitBSONHandlers extends ImplicitBSONHandlers
 /**
  * Implicit BSON Handlers (BSONDocumentReader/BSONDocumentWriter for JsObject)
  */
-private [json] trait ImplicitBSONHandlers extends BSONFormats {
+sealed trait ImplicitBSONHandlers extends BSONFormats {
   implicit object JsObjectWriter extends BSONDocumentWriter[JsObject] {
     def write(obj: JsObject): BSONDocument =
       BSONFormats.BSONDocumentFormat.bson(obj)

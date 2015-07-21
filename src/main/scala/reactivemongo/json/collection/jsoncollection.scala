@@ -19,7 +19,6 @@ package reactivemongo.json.collection
 import reactivemongo.json.BSONFormats
 import reactivemongo.json.JSONSerializationPack
 import reactivemongo.json.`package`._
-import reactivemongo.json.collection.JSONQueryBuilder
 import reactivemongo.json.commands.JSONFindAndModifyCommand
 import reactivemongo.json.commands.JSONFindAndModifyImplicits
 
@@ -52,6 +51,15 @@ import reactivemongo.api.commands.{ WriteConcern, WriteResult }
 import reactivemongo.utils.option
 
 import reactivemongo.json.{ BSONFormats, JSONSerializationPack }
+
+/**
+ * A Collection that interacts with the Play JSON library, using `Reads` and `Writes`.
+ */
+object `package` {
+  implicit object JSONCollectionProducer extends GenericCollectionProducer[JSONSerializationPack.type, JSONCollection] {
+    def apply(db: DB, name: String, failoverStrategy: FailoverStrategy) = new JSONCollection(db, name, failoverStrategy)
+  }
+}
 
 object JSONBatchCommands
   extends BatchCommands[JSONSerializationPack.type] { commands =>
