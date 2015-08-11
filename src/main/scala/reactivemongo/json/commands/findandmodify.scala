@@ -19,8 +19,8 @@ package reactivemongo.json.commands
 import play.api.libs.json.{ Json, JsObject, JsUndefined, OWrites }, Json.JsValueWrapper
 
 import reactivemongo.api.commands.{
-  FindAndModifyCommand,
-  ResolvedCollectionCommand
+FindAndModifyCommand,
+ResolvedCollectionCommand
 }
 import reactivemongo.json.JSONSerializationPack
 

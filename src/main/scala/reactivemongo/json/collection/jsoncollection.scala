@@ -16,36 +16,30 @@
 
 package reactivemongo.json.collection
 
-import reactivemongo.json.BSONFormats
-import reactivemongo.json.JSONSerializationPack
-import reactivemongo.json.`package`._
-import reactivemongo.json.commands.JSONFindAndModifyCommand
-import reactivemongo.json.commands.JSONFindAndModifyImplicits
-
 import scala.concurrent.{ ExecutionContext, Future }
 
 import play.api.libs.json.{
-  Json,
-  JsArray,
-  JsBoolean,
-  JsObject,
-  JsUndefined,
-  Writes
+Json,
+JsArray,
+JsBoolean,
+JsObject,
+JsUndefined,
+Writes
 }
 
 import reactivemongo.api.{
-  Collection,
-  CollectionMetaCommands,
-  DB,
-  FailoverStrategy,
-  QueryOpts,
-  ReadPreference
+Collection,
+CollectionMetaCommands,
+DB,
+FailoverStrategy,
+QueryOpts,
+ReadPreference
 }
 import reactivemongo.api.collections.{
-  BatchCommands,
-  GenericCollection,
-  GenericCollectionProducer,
-  GenericQueryBuilder
+BatchCommands,
+GenericCollection,
+GenericCollectionProducer,
+GenericQueryBuilder
 }
 import reactivemongo.api.commands.{ WriteConcern, WriteResult }
 import reactivemongo.utils.option
@@ -65,36 +59,37 @@ object JSONBatchCommands
   extends BatchCommands[JSONSerializationPack.type] { commands =>
 
   import play.api.libs.json.{
-    JsError,
-    JsNull,
-    JsNumber,
-    JsValue,
-    JsString,
-    JsResult,
-    JsSuccess,
-    Reads,
-    __
+  JsError,
+  JsNull,
+  JsNumber,
+  JsValue,
+  JsString,
+  JsResult,
+  JsSuccess,
+  Reads,
+  __
   }
   import reactivemongo.bson.{
-    BSONArray,
-    BSONDocument,
-    BSONDocumentWriter,
-    BSONObjectID,
-    Producer
+  BSONArray,
+  BSONDocument,
+  BSONDocumentWriter,
+  BSONObjectID,
+  BSONValue,
+  Producer
   }, Producer._
   import reactivemongo.api.commands.{
-    CountCommand => CC,
-    DefaultWriteResult,
-    DeleteCommand => DC,
-    GetLastError => GLE,
-    InsertCommand => IC,
-    LastError,
-    ResolvedCollectionCommand,
-    UpdateCommand => UC,
-    Upserted,
-    UpdateWriteResult,
-    WriteError,
-    WriteConcernError
+  CountCommand => CC,
+  DefaultWriteResult,
+  DeleteCommand => DC,
+  GetLastError => GLE,
+  InsertCommand => IC,
+  LastError,
+  ResolvedCollectionCommand,
+  UpdateCommand => UC,
+  Upserted,
+  UpdateWriteResult,
+  WriteError,
+  WriteConcernError
   }
   import reactivemongo.json.{ readOpt, BSONFormats }
 
@@ -196,7 +191,7 @@ object JSONBatchCommands
           JsError(__ \ "_id", "error.objectId")
 
         case js =>
-          JsSuccess(BSONFormats.BSONObjectIDFormat.partialReads(js))
+          BSONFormats.toBSON(js)
       }
     } yield Upserted(index = ix, _id = id)
   }
@@ -265,7 +260,7 @@ object JSONBatchCommands
       n <- readOpt[Int](js \ "n")
       we <- readOpt[Seq[WriteError]](js \ "writeErrors")
       ce <- readOpt[WriteConcernError](js \ "writeConcernError")
-      co <- readOpt[Int](js \ "code") //FIXME There is no corresponding official docs.
+      co <- readOpt[Int](js \ "code") //FIXME There is no corresponding official docs.      
       em <- readOpt[String](js \ "errmsg") //FIXME There is no corresponding official docs.
     } yield DefaultWriteResult(
         ok = ok.exists(_ != 0),
@@ -286,10 +281,10 @@ object JSONBatchCommands
       ss <- readOpt[String](js \ "singleShard")
       ux <- readOpt[Boolean](js \ "updatedExisting")
       ue <- {
-        val res: JsResult[Option[BSONObjectID]] = (js \ "upserted") match {
-          case _: JsUndefined => JsSuccess(Option.empty[BSONObjectID])
+        val res: JsResult[Option[BSONValue]] = (js \ "upserted") match {
+          case _: JsUndefined => JsSuccess(Option.empty[BSONValue])
           case js =>
-            BSONFormats.BSONObjectIDFormat.partialReads(js).map(Some(_))
+            BSONFormats.toBSON(js).map(Some(_))
         }
         res
       }
@@ -308,13 +303,21 @@ object JSONBatchCommands
   }
 
   import reactivemongo.json.commands.{
-    JSONFindAndModifyCommand,
-    JSONFindAndModifyImplicits
+  JSONFindAndModifyCommand,
+  JSONFindAndModifyImplicits
   }
-
   val FindAndModifyCommand = JSONFindAndModifyCommand
   implicit def FindAndModifyWriter = JSONFindAndModifyImplicits.FindAndModifyWriter
   implicit def FindAndModifyReader = JSONFindAndModifyImplicits.FindAndModifyResultReader
+
+  import reactivemongo.json.commands.{
+  JSONAggregationFramework,
+  JSONAggregationImplicits
+  }
+  val AggregationFramework = JSONAggregationFramework
+  implicit def AggregateWriter = JSONAggregationImplicits.AggregateWriter
+  implicit def AggregateReader =
+    JSONAggregationImplicits.AggregationResultReader
 
 }
 
