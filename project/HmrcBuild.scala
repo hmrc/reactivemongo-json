@@ -32,7 +32,7 @@ object HmrcBuild extends Build {
   lazy val reactiveMongoJson = Project(nameApp, file("."))
     .enablePlugins(SbtAutoBuildPlugin, SbtGitVersioning)
     .settings(
-      targetJvm := "jvm-1.7",
+      scalaVersion := "2.11.7",
       libraryDependencies ++= appDependencies,
       resolvers := Seq(
         Resolver.bintrayRepo("hmrc", "releases"),
