@@ -10,6 +10,18 @@ The original classes can be found here:
 * [json](https://github.com/ReactiveMongo/Play-ReactiveMongo/blob/master/src/main/scala/play/modules/reactivemongo/json.scala)
 * [jsoncollection](https://github.com/ReactiveMongo/Play-ReactiveMongo/blob/master/src/main/scala/play/modules/reactivemongo/jsoncollection.scala)
 
+### Installing
+
+Include the following dependency in your SBT build
+
+```scala
+resolvers += Resolver.bintrayRepo("hmrc", "releases")
+
+libraryDependencies += "uk.gov.hmrc" %% "reactivemongo-json" % "[INSERT_VERSION]"
+```
+
+*For Java 7 and Play 2.3.x use versions <=2.2.0*
+
 ## License ##
  
 This code is open source software licensed under the [Apache 2.0 License]("http://www.apache.org/licenses/LICENSE-2.0.html").
