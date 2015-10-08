@@ -47,7 +47,7 @@ object Dependencies {
 
   object Compile {
     val reactiveMongo = "org.reactivemongo" %% "reactivemongo" % "0.11.5" % "provided"
-    val playJson = "com.typesafe.play" %% "play-json" % "2.3.9" % "provided"
+    val playJson = "com.typesafe.play" %% "play-json" % "2.3.10" % "provided"
   }
 
   sealed abstract class Test(scope: String) {
