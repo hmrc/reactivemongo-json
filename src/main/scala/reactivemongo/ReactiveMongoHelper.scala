@@ -20,17 +20,34 @@ import reactivemongo.core.nodeset.Authenticate
 import scala.concurrent.ExecutionContext
 import reactivemongo.api.{MongoConnectionOptions, FailoverStrategy, DB, MongoDriver}
 
+object ReactiveMongoHelper {
+
+  @deprecated(message = "use case class constructor that takes MongoConnectionOptions")
+  def apply(dbName: String,
+           servers: Seq[String],
+           auth: Seq[Authenticate],
+           nbChannelsPerNode: Option[Int],
+           failoverStrategy: Option[FailoverStrategy]):ReactiveMongoHelper = {
+    val mongoOpts = nbChannelsPerNode.map { n => MongoConnectionOptions().copy(nbChannelsPerNode = n) }.getOrElse(MongoConnectionOptions())
+    this(dbName, servers, auth, failoverStrategy, mongoOpts)
+  }
+}
+
 case class ReactiveMongoHelper(dbName: String,
                                servers: Seq[String],
                                auth: Seq[Authenticate],
-                               nbChannelsPerNode: Option[Int],
-                               failoverStrategy: Option[FailoverStrategy]) {
+                               failoverStrategy: Option[FailoverStrategy],
+                               connectionOptions: MongoConnectionOptions = MongoConnectionOptions()) {
+
   implicit val ec: ExecutionContext = ExecutionContext.Implicits.global
   lazy val driver = new MongoDriver
-  lazy val connection = nbChannelsPerNode match {
-    case Some(numberOfChannels) => driver.connection(servers, authentications = auth, options = MongoConnectionOptions().copy(nbChannelsPerNode = numberOfChannels))
-    case _                      => driver.connection(servers, authentications = auth)
-  }
+
+  lazy val connection = driver.connection(
+    servers,
+    authentications = auth,
+    options = connectionOptions
+  )
+
   lazy val db = failoverStrategy match {
     case Some(fs : FailoverStrategy) => DB(dbName, connection, fs)
     case None => DB(dbName, connection)
