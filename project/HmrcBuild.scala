@@ -1,7 +1,7 @@
+import sbt.Keys._
 import sbt._
-import Keys._
-import uk.gov.hmrc.versioning.SbtGitVersioning
 import uk.gov.hmrc.SbtAutoBuildPlugin
+import uk.gov.hmrc.versioning.SbtGitVersioning
 
 /**
  * NOTE: classes under the package reactivemongo have been extracted from Play-ReactiveMongo, 
@@ -10,11 +10,6 @@ import uk.gov.hmrc.SbtAutoBuildPlugin
  **/
 object HmrcBuild extends Build {
 
-  import uk.gov.hmrc.DefaultBuildSettings
-  import DefaultBuildSettings._
-
-  import uk.gov.hmrc.{SbtBuildInfo, ShellPrompt}
-
   val nameApp = "reactivemongo-json"
 
   val appDependencies = {
@@ -22,6 +17,8 @@ object HmrcBuild extends Build {
 
     Seq(
       Compile.reactiveMongo,
+      Compile.reactiveMongo1,
+      Compile.reactiveMongo2,
       Compile.playJson,
 
       Test.specs2,
@@ -46,7 +43,9 @@ object HmrcBuild extends Build {
 object Dependencies {
 
   object Compile {
-    val reactiveMongo = "org.reactivemongo" %% "reactivemongo" % "0.11.5" % "provided"
+    val reactiveMongo = "uk.gov.hmrc" %% "reactivemongo" % "0.11.7" % "provided"
+    val reactiveMongo1 = "uk.gov.hmrc" %% "reactivemongo-bson" % "0.11.7" % "provided"
+    val reactiveMongo2 = "uk.gov.hmrc" %% "reactivemongo-bson-macros" % "0.11.7" % "provided"
     val playJson = "com.typesafe.play" %% "play-json" % "2.3.10" % "provided"
   }
 
