@@ -16,18 +16,20 @@
 
 package reactivemongo.json
 
-import play.api.libs.json._
+import play.api.libs.json.{JsError, _}
 import reactivemongo.bson._
 import reactivemongo.bson.utils.Converters
 
-import scala.math.BigDecimal.{
-double2bigDecimal,
-int2bigDecimal,
-long2bigDecimal
-}
+import scala.math.BigDecimal.{double2bigDecimal, int2bigDecimal, long2bigDecimal}
+import scala.util.{Failure, Success, Try}
 
 object `package` extends ImplicitBSONHandlers {
-  def readOpt[T](js: JsValue)(implicit reader: Reads[T]): JsResult[Option[T]] = js.validate[Option[T]]
+  object readOpt {
+    implicit def optionReads[T](implicit r: Reads[T]): Reads[Option[T]] =
+      Reads.optionWithNull[T]
+
+    def apply[T](lookup: JsLookupResult)(implicit r: Reads[T]): JsResult[Option[T]] = lookup.toOption.fold[JsResult[Option[T]]](JsSuccess(None))(_.validate[Option[T]])
+  }
 }
 
 object BSONFormats extends BSONFormats
@@ -123,11 +125,19 @@ sealed trait BSONFormats extends LowerImplicitBSONHandlers {
 
   implicit object BSONObjectIDFormat extends PartialFormat[BSONObjectID] {
     val partialReads: PartialFunction[JsValue, JsResult[BSONObjectID]] = {
-      case JsObject(("$oid", JsString(v)) +: Nil) => JsSuccess(BSONObjectID(v))
+      case OidValue(oid) => BSONObjectID.parse(oid) match {
+        case Success(id) => JsSuccess(id)
+        case Failure(er) => JsError(er.getMessage)
+      }
     }
 
     val partialWrites: PartialFunction[BSONValue, JsValue] = {
       case oid: BSONObjectID => Json.obj("$oid" -> oid.stringify)
+    }
+
+    private object OidValue {
+      def unapply(obj: JsObject): Option[String] =
+        if (obj.fields.size != 1) None else (obj \ "$oid").asOpt[String]
     }
   }
 
@@ -143,14 +153,21 @@ sealed trait BSONFormats extends LowerImplicitBSONHandlers {
 
   implicit object BSONDateTimeFormat extends PartialFormat[BSONDateTime] {
     val partialReads: PartialFunction[JsValue, JsResult[BSONDateTime]] = {
-      case JsObject(("$date", JsNumber(v)) +: Nil) =>
-        JsSuccess(BSONDateTime(v.toLong))
+      case DateValue(value) => JsSuccess(BSONDateTime(value))
     }
 
     val partialWrites: PartialFunction[BSONValue, JsValue] = {
       case dt: BSONDateTime => Json.obj("$date" -> dt.value)
     }
-  }
+
+    private object DateValue {
+      def unapply(obj: JsObject): Option[Long] =
+        (obj \ "$date").asOpt[JsValue].flatMap {
+          case n @ JsNumber(_) => n.asOpt[Long]
+          case o @ JsObject(_) => (o \ "$numberLong").asOpt[Long]
+          case _               => None
+        }
+    }  }
 
   implicit object BSONTimestampFormat extends PartialFormat[BSONTimestamp] {
     val partialReads: PartialFunction[JsValue, JsResult[BSONTimestamp]] = {
@@ -204,32 +221,52 @@ sealed trait BSONFormats extends LowerImplicitBSONHandlers {
   }
 
   implicit object BSONUndefinedFormat extends PartialFormat[BSONUndefined.type] {
-    def partialReads: PartialFunction[JsValue, JsResult[BSONUndefined.type]] = {
-      case _: JsUndefined => JsSuccess(BSONUndefined)
+    private object Undefined {
+      def unapply(obj: JsObject): Option[BSONUndefined.type] =
+        obj.value.get("$undefined") match {
+          case Some(JsBoolean(true)) => Some(BSONUndefined)
+          case _                     => None
+        }
     }
+
+    val partialReads: PartialFunction[JsValue, JsResult[BSONUndefined.type]] = {
+      case Undefined(bson) => JsSuccess(bson)
+    }
+
     val partialWrites: PartialFunction[BSONValue, JsValue] = {
-      case BSONUndefined => JsUndefined("")
+      case BSONUndefined => Json.obj("$undefined" -> true)
     }
   }
 
   implicit object BSONIntegerFormat extends PartialFormat[BSONInteger] {
-    def partialReads: PartialFunction[JsValue, JsResult[BSONInteger]] = {
-      case JsObject(("$int", JsNumber(i)) +: Nil) => JsSuccess(BSONInteger(i.toInt))
-      case JsNumber(i)                            => JsSuccess(BSONInteger(i.toInt))
+    val partialReads: PartialFunction[JsValue, JsResult[BSONInteger]] = {
+      case JsNumber(i)     => JsSuccess(BSONInteger(i.toInt))
+      case IntValue(value) => JsSuccess(BSONInteger(value))
     }
+
     val partialWrites: PartialFunction[BSONValue, JsValue] = {
-      case int: BSONInteger => JsNumber(int.value)
+      case BSONInteger(i) => JsNumber(i)
+    }
+
+    private object IntValue {
+      def unapply(obj: JsObject): Option[Int] =
+        (obj \ "$int").asOpt[JsNumber].map(_.value.toInt)
     }
   }
 
   implicit object BSONLongFormat extends PartialFormat[BSONLong] {
     val partialReads: PartialFunction[JsValue, JsResult[BSONLong]] = {
-      case JsObject(("$long", JsNumber(long)) +: Nil) => JsSuccess(BSONLong(long.toLong))
-      case JsNumber(long)                             => JsSuccess(BSONLong(long.toLong))
+      case JsNumber(long)   => JsSuccess(BSONLong(long.toLong))
+      case LongValue(value) => JsSuccess(BSONLong(value))
     }
 
     val partialWrites: PartialFunction[BSONValue, JsValue] = {
-      case long: BSONLong => JsNumber(long.value)
+      case BSONLong(l) => JsNumber(l)
+    }
+
+    private object LongValue {
+      def unapply(obj: JsObject): Option[Long] =
+        (obj \ "$long").asOpt[JsNumber].map(_.value.toLong)
     }
   }
 
@@ -260,11 +297,16 @@ sealed trait BSONFormats extends LowerImplicitBSONHandlers {
 
   implicit object BSONSymbolFormat extends PartialFormat[BSONSymbol] {
     val partialReads: PartialFunction[JsValue, JsResult[BSONSymbol]] = {
-      case JsObject(("$symbol", JsString(v)) +: Nil) => JsSuccess(BSONSymbol(v))
+      case SymbolValue(value) => JsSuccess(BSONSymbol(value))
     }
 
     val partialWrites: PartialFunction[BSONValue, JsValue] = {
       case BSONSymbol(s) => Json.obj("$symbol" -> s)
+    }
+
+    private object SymbolValue {
+      def unapply(obj: JsObject): Option[String] =
+        if (obj.fields.size != 1) None else (obj \ "$symbol").asOpt[String]
     }
   }
 
@@ -332,17 +374,15 @@ object Writers {
 }
 
 object JSONSerializationPack extends reactivemongo.api.SerializationPack {
-  import reactivemongo.bson.buffer.{
-  DefaultBufferHandler,
-  ReadableBuffer,
-  WritableBuffer
-  }
+  import reactivemongo.bson.buffer.{ ReadableBuffer, WritableBuffer }
 
   type Value = JsValue
   type ElementProducer = (String, Json.JsValueWrapper)
   type Document = JsObject
   type Writer[A] = OWrites[A]
   type Reader[A] = Reads[A]
+  type NarrowValueReader[A] = Reads[A]
+  private[reactivemongo]type WidenValueReader[A] = Reads[A]
 
   object IdentityReader extends Reader[Document] {
     def reads(js: JsValue): JsResult[Document] = js match {
@@ -363,12 +403,15 @@ object JSONSerializationPack extends reactivemongo.api.SerializationPack {
       case JsSuccess(v, _) => v
     }
 
-  def writeToBuffer(buffer: WritableBuffer, document: Document): WritableBuffer = {
-    BSONDocument.write(BSONFormats.toBSON(document).flatMap[BSONDocument] {
-      case d: BSONDocument => JsSuccess(d)
-      case v               => JsError(s"document is expected: $v")
-    }.get, buffer)
-    buffer
+  def writeToBuffer(buffer: WritableBuffer, document: Document): WritableBuffer = BSONFormats.toBSON(document) match {
+    case err @ JsError(_) => sys.error(s"fails to write the document: $document: ${Json stringify JsError.toJson(err)}")
+
+    case JsSuccess(d @ BSONDocument(_), _) => {
+      BSONDocument.write(d, buffer)
+      buffer
+    }
+
+    case JsSuccess(v, _) => sys.error(s"fails to write the document: $document; unexpected conversion $v")
   }
 
   def readFromBuffer(buffer: ReadableBuffer): Document =
@@ -379,6 +422,16 @@ object JSONSerializationPack extends reactivemongo.api.SerializationPack {
   }
 
   def isEmpty(document: Document): Boolean = document.values.isEmpty
+
+  def widenReader[T](r: NarrowValueReader[T]): WidenValueReader[T] = r
+
+  def readValue[A](value: Value, reader: WidenValueReader[A]): Try[A] =
+    reader.reads(value) match {
+      case err @ JsError(_) => Failure(new scala.RuntimeException(s"fails to reads the value: ${Json stringify value}; ${Json stringify JsError.toJson(err)}"))
+
+      case JsSuccess(v, _)  => Success(v)
+    }
+
 }
 
 import play.api.libs.json.{ JsObject, JsValue }
