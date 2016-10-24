@@ -22,7 +22,9 @@ object HmrcBuild extends Build {
       Compile.playJson,
 
       Test.specs2,
-      Test.junit
+      Test.junit,
+      Test.logbackCore,
+      Test.logbackClassic
     )
   }
 
@@ -43,16 +45,19 @@ object HmrcBuild extends Build {
 object Dependencies {
 
   object Compile {
-    val reactiveMongo = "uk.gov.hmrc" %% "reactivemongo" % "0.11.7" % "provided"
-    val reactiveMongo1 = "uk.gov.hmrc" %% "reactivemongo-bson" % "0.11.7" % "provided"
-    val reactiveMongo2 = "uk.gov.hmrc" %% "reactivemongo-bson-macros" % "0.11.7" % "provided"
-    val playJson = "com.typesafe.play" %% "play-json" % "2.3.10" % "provided"
+    val reactiveMongo = "uk.gov.hmrc" %% "reactivemongo" % "0.12.0" % "provided"
+    val reactiveMongo1 = "uk.gov.hmrc" %% "reactivemongo-bson" % "0.11.7" % "provided" force()
+    val reactiveMongo2 = "uk.gov.hmrc" %% "reactivemongo-bson-macros" % "0.11.7" % "provided" force()
+    val playJson = "com.typesafe.play" %% "play-json" % "2.5.8" % "provided"
   }
 
   sealed abstract class Test(scope: String) {
 
     val specs2 = "org.specs2" % "specs2" % "2.3.12" % scope cross CrossVersion.binary
     val junit = "junit" % "junit" % "4.8" % scope
+    val logbackCore = "ch.qos.logback" % "logback-core" % "1.1.7" % scope
+    val logbackClassic = "ch.qos.logback" % "logback-classic" % "1.1.7" % scope
+
   }
 
   object Test extends Test("test")

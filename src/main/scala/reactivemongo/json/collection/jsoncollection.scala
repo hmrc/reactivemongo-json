@@ -16,42 +16,30 @@
 
 package reactivemongo.json.collection
 
-import scala.concurrent.{ ExecutionContext, Future }
-
-import play.api.libs.json.{
-Json,
-JsArray,
-JsBoolean,
-JsObject,
-JsUndefined,
-Writes
-}
-
-import reactivemongo.api.{
-Collection,
-CollectionMetaCommands,
-DB,
-FailoverStrategy,
-QueryOpts,
-ReadPreference
-}
-import reactivemongo.api.collections.{
-BatchCommands,
-GenericCollection,
-GenericCollectionProducer,
-GenericQueryBuilder
-}
-import reactivemongo.api.commands.{ WriteConcern, WriteResult }
+import scala.concurrent.{ExecutionContext, Future}
+import play.api.libs.json._
+import reactivemongo.api._
+import reactivemongo.api.collections.{BatchCommands, GenericCollection, GenericCollectionProducer, GenericQueryBuilder}
+import reactivemongo.api.commands.{WriteConcern, WriteResult}
 import reactivemongo.utils.option
+import reactivemongo.json.{BSONFormats, JSONSerializationPack}
 
-import reactivemongo.json.{ BSONFormats, JSONSerializationPack }
+import scala.collection.immutable.ListSet
 
 /**
  * A Collection that interacts with the Play JSON library, using `Reads` and `Writes`.
  */
 object `package` {
+
   implicit object JSONCollectionProducer extends GenericCollectionProducer[JSONSerializationPack.type, JSONCollection] {
     def apply(db: DB, name: String, failoverStrategy: FailoverStrategy) = new JSONCollection(db, name, failoverStrategy)
+  }
+
+  object readOpt {
+    implicit def optionReads[T](implicit r: Reads[T]): Reads[Option[T]] =
+      Reads.optionWithNull[T]
+
+    def apply[T](lookup: JsLookupResult)(implicit r: Reads[T]): JsResult[Option[T]] = lookup.toOption.fold[JsResult[Option[T]]](JsSuccess(None))(_.validate[Option[T]])
   }
 }
 
@@ -60,23 +48,13 @@ object JSONBatchCommands
 
   import play.api.libs.json.{
   JsError,
-  JsNull,
   JsNumber,
   JsValue,
   JsString,
   JsResult,
-  JsSuccess,
-  Reads,
-  __
+  JsSuccess
   }
-  import reactivemongo.bson.{
-  BSONArray,
-  BSONDocument,
-  BSONDocumentWriter,
-  BSONObjectID,
-  BSONValue,
-  Producer
-  }, Producer._
+  import reactivemongo.bson.BSONValue
   import reactivemongo.api.commands.{
   CountCommand => CC,
   DefaultWriteResult,
@@ -91,7 +69,7 @@ object JSONBatchCommands
   WriteError,
   WriteConcernError
   }
-  import reactivemongo.json.{ readOpt, BSONFormats }
+  import reactivemongo.json.BSONFormats
 
   val pack = JSONSerializationPack
 
@@ -186,13 +164,7 @@ object JSONBatchCommands
   implicit object UpsertedReader extends pack.Reader[Upserted] {
     def reads(js: JsValue): JsResult[Upserted] = for {
       ix <- (js \ "index").validate[Int]
-      id <- (js \ "_id") match {
-        case _: JsUndefined =>
-          JsError(__ \ "_id", "error.objectId")
-
-        case js =>
-          BSONFormats.toBSON(js)
-      }
+      id <- (js \ "_id").validate[JsValue].flatMap(BSONFormats.toBSON)
     } yield Upserted(index = ix, _id = id)
   }
 
@@ -280,26 +252,24 @@ object JSONBatchCommands
       n <- readOpt[Int](js \ "n")
       ss <- readOpt[String](js \ "singleShard")
       ux <- readOpt[Boolean](js \ "updatedExisting")
-      ue <- {
-        val res: JsResult[Option[BSONValue]] = (js \ "upserted") match {
-          case _: JsUndefined => JsSuccess(Option.empty[BSONValue])
-          case js =>
-            BSONFormats.toBSON(js).map(Some(_))
-        }
-        res
-      }
-      wn <- (js \ "wnote") match {
+      ue <- readOpt[JsValue](js \ "upserted").flatMap(
+        _.fold[JsResult[Option[BSONValue]]](
+          JsSuccess(None)
+        )(BSONFormats.toBSON(_).map(Some(_)))
+      )
+      wn <- (js \ "wnote").get match {
         case JsString("majority") => JsSuccess(Some(GLE.Majority))
         case JsString(tagSet)     => JsSuccess(Some(GLE.TagSet(tagSet)))
         case JsNumber(acks) => JsSuccess(
-          Some(GLE.WaitForAknowledgments(acks.toInt)))
+          Some(GLE.WaitForAknowledgments(acks.toInt))
+        )
         case _ => JsSuccess(Option.empty[GLE.W])
       }
       wt <- readOpt[Boolean](js \ "wtimeout")
       we <- readOpt[Int](js \ "waited")
       wm <- readOpt[Int](js \ "wtime")
     } yield LastError(ok.exists(_ != 0), er, co, lo, n.getOrElse(0),
-        ss, ux.getOrElse(false), ue, wn, wt.getOrElse(false), we, wm)
+      ss, ux.getOrElse(false), ue, wn, wt.getOrElse(false), we, wm)
   }
 
   import reactivemongo.json.commands.{
@@ -354,12 +324,14 @@ case class JSONCollection(
   @deprecated(since = "0.11.1", message = "Use [[update]] with `upsert` set to true")
   def save(doc: pack.Document, writeConcern: WriteConcern)(implicit ec: ExecutionContext): Future[WriteResult] = {
     import reactivemongo.bson.BSONObjectID
-    (doc \ "_id") match {
-      case _: JsUndefined => insert(doc + ("_id" ->
-        BSONFormats.BSONObjectIDFormat.writes(BSONObjectID.generate)),
-        writeConcern)
+    (doc \ "_id").toOption match {
+      case None => insert(
+        doc + ("_id" ->
+          BSONFormats.BSONObjectIDFormat.writes(BSONObjectID.generate)),
+        writeConcern
+      )
 
-      case id =>
+      case Some(id) =>
         update(Json.obj("_id" -> id), doc, writeConcern, upsert = true)
     }
   }
