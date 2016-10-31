@@ -17,8 +17,6 @@ object HmrcBuild extends Build {
 
     Seq(
       Compile.reactiveMongo,
-      Compile.reactiveMongo1,
-      Compile.reactiveMongo2,
       Compile.playJson,
 
       Test.specs2,
@@ -45,9 +43,7 @@ object HmrcBuild extends Build {
 object Dependencies {
 
   object Compile {
-    val reactiveMongo = "uk.gov.hmrc" %% "reactivemongo" % "0.12.0" % "provided"
-    val reactiveMongo1 = "uk.gov.hmrc" %% "reactivemongo-bson" % "0.11.8" % "provided" force()
-    val reactiveMongo2 = "uk.gov.hmrc" %% "reactivemongo-bson-macros" % "0.11.8" % "provided" force()
+    val reactiveMongo = "uk.gov.hmrc" %% "reactivemongo" % "0.12.1" % "provided"
     val playJson = "com.typesafe.play" %% "play-json" % "2.5.8" % "provided"
   }
 
