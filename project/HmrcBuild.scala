@@ -43,8 +43,8 @@ object HmrcBuild extends Build {
 object Dependencies {
 
   object Compile {
-    val reactiveMongo = "uk.gov.hmrc" %% "reactivemongo" % "0.12.1" % "provided"
-    val playJson = "com.typesafe.play" %% "play-json" % "2.5.8" % "provided"
+    val reactiveMongo = "uk.gov.hmrc" %% "reactivemongo" % "0.13.0" % "provided"
+    val playJson = "com.typesafe.play" %% "play-json" % "2.5.12" % "provided"
   }
 
   sealed abstract class Test(scope: String) {
