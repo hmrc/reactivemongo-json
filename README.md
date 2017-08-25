@@ -1,4 +1,4 @@
-**[DEPRECATED][UNMAINTAINED] Please be aware that this library is no longer maintained. Moving forwared, please use [simple-reactivemongo](https://github.com/hmrc/simple-reactivemongo) or [Play-ReactiveMongo](https://github.com/hmrc/play-reactivemongo) were appropriate. If you wish to use an alternative to this library, please use the officially maintained upstream version: [ReactiveMongo-Play-Json](https://github.com/reactivemongo/reactivemongo-play-json)**
+**[DEPRECATED] Please be aware that this library is no longer maintained. Moving forwared, please use [simple-reactivemongo](https://github.com/hmrc/simple-reactivemongo) or [Play-ReactiveMongo](https://github.com/hmrc/play-reactivemongo) version 6.0.0 or higher were appropriate. If you wish to use an alternative to this library, please use the officially maintained upstream version that is now used in the platform libraries: [ReactiveMongo-Play-Json](https://github.com/reactivemongo/reactivemongo-play-json)**
 
 # reactivemongo-json
 
